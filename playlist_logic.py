@@ -164,11 +164,16 @@ def search_songs(
         return songs
 
     q = query.lower().strip()
+    query_words = q.split()
     filtered: List[Song] = []
 
     for song in songs:
         value = str(song.get(field, "")).lower()
-        if value and value in q:
+        if not value:
+            continue
+        value_words = value.split()
+        # Every query word must appear as a substring in at least one value word
+        if all(any(qw in vw for vw in value_words) for qw in query_words):
             filtered.append(song)
 
     return filtered
