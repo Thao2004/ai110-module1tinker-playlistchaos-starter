@@ -196,6 +196,19 @@ def random_choice_or_none(songs: List[Song]) -> Optional[Song]:
     return random.choice(songs)
 
 
+def find_existing_song(songs: List[Song], title: str, artist: str) -> int:
+    """Return the index of a song with matching title and artist (case-insensitive), or -1."""
+    norm_title = normalize_title(title).lower()
+    norm_artist = normalize_artist(artist)
+    for i, song in enumerate(songs):
+        if (
+            normalize_title(str(song.get("title", ""))).lower() == norm_title
+            and normalize_artist(str(song.get("artist", ""))) == norm_artist
+        ):
+            return i
+    return -1
+
+
 def history_summary(history: List[Song]) -> Dict[str, int]:
     """Return a summary of moods seen in the history."""
     counts = {"Hype": 0, "Chill": 0, "Mixed": 0}

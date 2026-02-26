@@ -5,6 +5,7 @@ from playlist_logic import (
     Song,
     build_playlists,
     compute_playlist_stats,
+    find_existing_song,
     history_summary,
     lucky_pick,
     merge_playlists,
@@ -21,6 +22,8 @@ def init_state():
         st.session_state.profile = dict(DEFAULT_PROFILE)
     if "history" not in st.session_state:
         st.session_state.history = []
+    if "pending_update" not in st.session_state:
+        st.session_state.pending_update = None
 
 
 def default_songs():
@@ -250,9 +253,64 @@ def add_song_sidebar():
         }
         if title and artist:
             normalized = normalize_song(song)
-            all_songs = st.session_state.songs[:]
-            all_songs.append(normalized)
-            st.session_state.songs = all_songs
+            idx = find_existing_song(st.session_state.songs, title, artist)
+
+            if idx == -1:
+                # No duplicate — add normally
+                all_songs = st.session_state.songs[:]
+                all_songs.append(normalized)
+                st.session_state.songs = all_songs
+                st.sidebar.success(f'"{title}" added to your playlist!')
+            else:
+                existing = st.session_state.songs[idx]
+                same_details = (
+                    existing.get("energy") == normalized.get("energy")
+                    and existing.get("genre") == normalized.get("genre")
+                    and sorted(existing.get("tags", [])) == sorted(normalized.get("tags", []))
+                )
+                if same_details:
+                    # Exact duplicate — just warn
+                    st.sidebar.warning(
+                        f'"{title}" by {artist} is already in your playlist with the same details.'
+                    )
+                else:
+                    # Same song, different details — ask user to confirm update
+                    st.session_state.pending_update = {
+                        "index": idx,
+                        "new_song": normalized,
+                    }
+        elif not title or not artist:
+            st.sidebar.error("Please fill in both Title and Artist.")
+
+    # Show update confirmation prompt if one is pending
+    pending = st.session_state.pending_update
+    if pending is not None:
+        idx = pending["index"]
+        songs = st.session_state.songs
+        if idx < len(songs):
+            existing = songs[idx]
+            new_song = pending["new_song"]
+            st.sidebar.warning(
+                f'**"{existing["title"]}"** by **{existing["artist"]}** is already in your playlist '
+                f'but with different details.\n\n'
+                f'**Current:** genre={existing["genre"]}, energy={existing["energy"]}, '
+                f'tags={", ".join(existing.get("tags", [])) or "none"}\n\n'
+                f'**New:** genre={new_song["genre"]}, energy={new_song["energy"]}, '
+                f'tags={", ".join(new_song.get("tags", [])) or "none"}\n\n'
+                f'Do you want to update it?'
+            )
+            col1, col2 = st.sidebar.columns(2)
+            if col1.button("Update", key="confirm_update"):
+                all_songs = st.session_state.songs[:]
+                all_songs[idx] = new_song
+                st.session_state.songs = all_songs
+                st.session_state.pending_update = None
+                st.sidebar.success("Song updated!")
+            if col2.button("Cancel", key="cancel_update"):
+                st.session_state.pending_update = None
+        else:
+            # Index out of range (e.g. songs were reset), clear stale state
+            st.session_state.pending_update = None
 
 
 def playlist_tabs(playlists):
