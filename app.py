@@ -357,7 +357,7 @@ def lucky_section(playlists):
 
     mode = st.selectbox(
         "Pick from",
-        options=["any", "hype", "chill"],
+        options=["any"] + [key.lower() for key in playlists.keys()],
         index=0,
     )
 
